@@ -1,0 +1,7 @@
+{
+    "token": "Token Discord...",
+    "phones": ["Phone", "Phone 2", "Add more..."],
+    "url": "Webhook Success",
+    "urlfail": "WebHook Fail"
+}
+
