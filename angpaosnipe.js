@@ -31,10 +31,10 @@ client.on('messageCreate', async (message) => {
 
     phones.forEach(phone => {
         if (message.embeds.length > 0) {
-            message.embeds.forEach(embed => processVoucher(phone, embed, message));
+            message.embeds.forEach(embed => processEmbed(phone, embed, message));
         }
         if (message.content.match(regex)) {
-            processVoucher(phone, message, message.content);
+            redeemVoucher(phone, message.content, message);
         }
     });
 
@@ -52,7 +52,7 @@ client.on('messageCreate', async (message) => {
                     if (extractedText.match(regex)) {
                         const voucherUrl = extractedText.match(regex)[0];
                         phones.forEach(phone => {
-                            processVoucher(phone, voucherUrl, message);
+                            redeemVoucher(phone, voucherUrl, message);
                         });
                     }
                 } catch (err) {
@@ -74,7 +74,7 @@ client.on('messageCreate', async (message) => {
                         if (qrCode.data.match(regex)) {
                             const voucherUrl = qrCode.data.match(regex)[0];
                             phones.forEach(phone => {
-                                processVoucher(phone, voucherUrl, message);
+                                redeemVoucher(phone, voucherUrl, message);
                             });
                         }
                     }
@@ -88,7 +88,7 @@ client.on('messageCreate', async (message) => {
     console.log(`${message.guild ? message.guild.name : "DM"} | ${message.author.username}: ${message.content}`);
 });
 
-function processVoucher(phone, embed, message) {
+function processEmbed(phone, embed, message) {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
     const url = embed.url || (embed.author && embed.author.url);
 
