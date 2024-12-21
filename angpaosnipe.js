@@ -41,15 +41,14 @@ client.on('messageCreate', async (message) => {
         if (message.content.match(regex)) {
             redeemVoucher(phone, message.content, message);
         }
-    });
-
-    if (message.attachments.size > 0) {
-        message.attachments.forEach(async (attachment) => {
+        if (message.attachments.size > 0) {
+            message.attachments.forEach(async (attachment) => {
             if (attachment.contentType.startsWith('image/')) {
                     setImmediate(() => processImage(attachment.url, phone, message));
             }
         });
     }
+    });
 
     console.log(`${message.guild ? message.guild.name : "DM"} | ${message.author.username}: ${message.content}`);
 });
