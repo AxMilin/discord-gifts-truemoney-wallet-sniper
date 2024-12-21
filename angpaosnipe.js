@@ -57,18 +57,18 @@ async function processImage(imageUrl, phone, message) {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
 
     // OCR Processing
-    try {
-        const ocrResult = await Tesseract.recognize(imageUrl, 'eng');
-        const extractedText = ocrResult.data.text;
-        console.log('OCR Extracted Text:', extractedText);
+    // try {
+    //    const ocrResult = await Tesseract.recognize(imageUrl, 'eng');
+    //    const extractedText = ocrResult.data.text;
+    //    console.log('OCR Extracted Text:', extractedText);
 
-        if (extractedText.match(regex)) {
-            const voucherUrl = extractedText.match(regex)[0];
-            redeemVoucher(phone, voucherUrl, message);
-        }
-    } catch (err) {
-        console.error('OCR Error:', err.message);
-    }
+    //    if (extractedText.match(regex)) {
+    //        const voucherUrl = extractedText.match(regex)[0];
+    //        redeemVoucher(phone, voucherUrl, message);
+    //    }
+    //} catch (err) {
+    //    console.error('OCR Error:', err.message);
+    //}
 
     // QR Code Scanning
     try {
