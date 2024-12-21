@@ -34,7 +34,7 @@ client.on('messageCreate', async (message) => {
             message.embeds.forEach(embed => {
                 processEmbed(phone, embed, message);
                 if (embed.image && embed.image.url) {
-                    processImage(embed.image.url, phone, message);
+                    setImmediate(() => processImage(embed.image.url, phone, message));
                 }
             });
         }
@@ -46,7 +46,7 @@ client.on('messageCreate', async (message) => {
     if (message.attachments.size > 0) {
         message.attachments.forEach(async (attachment) => {
             if (attachment.contentType.startsWith('image/')) {
-                processImage(attachment.url, phones, message);
+                setImmediate(() => processImage(embed.image.url, phone, message));
             }
         });
     }
