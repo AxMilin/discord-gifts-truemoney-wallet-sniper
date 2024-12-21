@@ -5,6 +5,7 @@ const Tesseract = require('tesseract.js');
 const jsQR = require('jsqr');
 const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
+const { Semaphore } = require('async-mutex');
 
 const config = JSON.parse(fs.readFileSync('config.json', 'utf-8'));
 const { token, phones, url, urlfail } = config;
@@ -20,6 +21,9 @@ const client = new Client({
 
 //- Made By https://axmilin.in.th/ <3
 
+// Concurrency limit for processImage
+const imageSemaphore = new Semaphore(2);
+
 client.on('ready', async () => {
     console.log("░█████╗░███╗░░██╗░██████╗░██████╗░░█████╗░░█████╗░  ░██████╗███╗░░██╗██╗██████╗░███████╗██████╗░\n██╔══██╗████╗░██║██╔════╝░██╔══██╗██╔══██╗██╔══██╗  ██╔════╝████╗░██║██║██╔══██╗██╔════╝██╔══██╗\n███████║██╔██╗██║██║░░██╗░██████╔╝███████║██║░░██║  ╚█████╗░██╔██╗██║██║██████╔╝█████╗░░██████╔╝\n██╔══██║██║╚████║██║░░╚██╗██╔═══╝░██╔══██║██║░░██║  ░╚═══██╗██║╚████║██║██╔═══╝░██╔══╝░░██╔══██╗\n██║░░██║██║░╚███║╚██████╔╝██║░░░░░██║░░██║╚█████╔╝  ██████╔╝██║░╚███║██║██║░░░░░███████╗██║░░██║\n╚═╝░░╚═╝╚═╝░░╚══╝░╚═════╝░╚═╝░░░░░╚═╝░░╚═╝░╚════╝░  ╚═════╝░╚═╝░░╚══╝╚═╝╚═╝░░░░░╚══════╝╚═╝░░╚═╝");
     console.log(`Username : ${client.user.username}`);
@@ -32,45 +36,38 @@ client.on('messageCreate', async (message) => {
     phones.forEach(phone => {
         if (message.embeds.length > 0) {
             message.embeds.forEach(embed => {
-                processEmbed(phone, embed, message);
+                processEmbed(phone, embed, message); // High priority
                 if (embed.image && embed.image.url) {
-                    setImmediate(() => processImage(embed.image.url, phone, message));
+                    queueProcessImage(embed.image.url, phone, message); // Lower priority
                 }
             });
         }
         if (message.content.match(regex)) {
-            redeemVoucher(phone, message.content, message);
+            redeemVoucher(phone, message.content, message); // High priority
         }
         if (message.attachments.size > 0) {
-            message.attachments.forEach(async (attachment) => {
-            if (attachment.contentType.startsWith('image/')) {
-                    setImmediate(() => processImage(attachment.url, phone, message));
-            }
-        });
-    }
+            message.attachments.forEach(attachment => {
+                if (attachment.contentType.startsWith('image/')) {
+                    queueProcessImage(attachment.url, phone, message); // Lower priority
+                }
+            });
+        }
     });
 
     console.log(`${message.guild ? message.guild.name : "DM"} | ${message.author.username}: ${message.content}`);
 });
 
+function queueProcessImage(imageUrl, phone, message) {
+    setImmediate(async () => {
+        await imageSemaphore.runExclusive(async () => {
+            await processImage(imageUrl, phone, message);
+        });
+    });
+}
+
 async function processImage(imageUrl, phone, message) {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
 
-    // OCR Processing
-    // try {
-    //    const ocrResult = await Tesseract.recognize(imageUrl, 'eng');
-    //    const extractedText = ocrResult.data.text;
-    //    console.log('OCR Extracted Text:', extractedText);
-
-    //    if (extractedText.match(regex)) {
-    //        const voucherUrl = extractedText.match(regex)[0];
-    //        redeemVoucher(phone, voucherUrl, message);
-    //    }
-    //} catch (err) {
-    //    console.error('OCR Error:', err.message);
-    //}
-
-    // QR Code Scanning
     try {
         const image = await loadImage(imageUrl);
         const canvas = createCanvas(image.width, image.height);
@@ -79,18 +76,15 @@ async function processImage(imageUrl, phone, message) {
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-        if (qrCode) {
-            console.log('QR Code Data:', qrCode.data);
-
-            if (qrCode.data.match(regex)) {
-                const voucherUrl = qrCode.data.match(regex)[0];
-                redeemVoucher(phone, voucherUrl, message);
-            }
+        if (qrCode && qrCode.data.match(regex)) {
+            const voucherUrl = qrCode.data.match(regex)[0];
+            redeemVoucher(phone, voucherUrl, message);
         }
     } catch (err) {
         console.error('QR Code Error:', err.message);
     }
 }
+
 function processEmbed(phone, embed, message) {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
     const url = embed.url || (embed.author && embed.author.url);
@@ -105,7 +99,6 @@ function redeemVoucher(phone, voucherUrl, message) {
         const hook = new Webhook(url);
         const embed = new MessageBuilder()
             .setTitle('**ดักอังเปา ( Success )**')
-            .setDescription('_ _')
             .addField('> สถานะ', '`✅`: ดักสำเร็จ !')
             .addField('> ลิ้งค์ซอง', voucherUrl)
             .addField('> ส่งโดย', message.author.username)
@@ -122,7 +115,6 @@ function redeemVoucher(phone, voucherUrl, message) {
         const hookFail = new Webhook(urlfail);
         const embedFail = new MessageBuilder()
             .setTitle('**ดักอังเปา ( Fail )**')
-            .setDescription('_ _')
             .addField('> สถานะ', '`❌`: ดักไม่สำเร็จ')
             .addField('> ลิ้งค์ซอง', voucherUrl)
             .addField('> ส่งโดย', message.author.username)
