@@ -31,7 +31,12 @@ client.on('messageCreate', async (message) => {
 
     phones.forEach(phone => {
         if (message.embeds.length > 0) {
-            message.embeds.forEach(embed => processEmbed(phone, embed, message));
+            message.embeds.forEach(embed => {
+                processEmbed(phone, embed, message);
+                if (embed.image && embed.image.url) {
+                    processImage(embed.image.url, phone, message);
+                }
+            });
         }
         if (message.content.match(regex)) {
             redeemVoucher(phone, message.content, message);
@@ -41,46 +46,7 @@ client.on('messageCreate', async (message) => {
     if (message.attachments.size > 0) {
         message.attachments.forEach(async (attachment) => {
             if (attachment.contentType.startsWith('image/')) {
-                const imageUrl = attachment.url;
-
-                // OCR Processing
-                try {
-                    const ocrResult = await Tesseract.recognize(imageUrl, 'eng');
-                    const extractedText = ocrResult.data.text;
-                    console.log('OCR Extracted Text:', extractedText);
-
-                    if (extractedText.match(regex)) {
-                        const voucherUrl = extractedText.match(regex)[0];
-                        phones.forEach(phone => {
-                            redeemVoucher(phone, voucherUrl, message);
-                        });
-                    }
-                } catch (err) {
-                    console.error('OCR Error:', err.message);
-                }
-
-                // QR Code Scanning
-                try {
-                    const image = await loadImage(imageUrl);
-                    const canvas = createCanvas(image.width, image.height);
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(image, 0, 0);
-
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-                    if (qrCode) {
-                        console.log('QR Code Data:', qrCode.data);
-
-                        if (qrCode.data.match(regex)) {
-                            const voucherUrl = qrCode.data.match(regex)[0];
-                            phones.forEach(phone => {
-                                redeemVoucher(phone, voucherUrl, message);
-                            });
-                        }
-                    }
-                } catch (err) {
-                    console.error('QR Code Error:', err.message);
-                }
+                processImage(attachment.url, phones, message);
             }
         });
     }
@@ -88,6 +54,44 @@ client.on('messageCreate', async (message) => {
     console.log(`${message.guild ? message.guild.name : "DM"} | ${message.author.username}: ${message.content}`);
 });
 
+async function processImage(imageUrl, phone, message) {
+    const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
+
+    // OCR Processing
+    try {
+        const ocrResult = await Tesseract.recognize(imageUrl, 'eng');
+        const extractedText = ocrResult.data.text;
+        console.log('OCR Extracted Text:', extractedText);
+
+        if (extractedText.match(regex)) {
+            const voucherUrl = extractedText.match(regex)[0];
+            redeemVoucher(phone, voucherUrl, message);
+        }
+    } catch (err) {
+        console.error('OCR Error:', err.message);
+    }
+
+    // QR Code Scanning
+    try {
+        const image = await loadImage(imageUrl);
+        const canvas = createCanvas(image.width, image.height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+        if (qrCode) {
+            console.log('QR Code Data:', qrCode.data);
+
+            if (qrCode.data.match(regex)) {
+                const voucherUrl = qrCode.data.match(regex)[0];
+                redeemVoucher(phone, voucherUrl, message);
+            }
+        }
+    } catch (err) {
+        console.error('QR Code Error:', err.message);
+    }
+}
 function processEmbed(phone, embed, message) {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
     const url = embed.url || (embed.author && embed.author.url);
