@@ -46,7 +46,7 @@ client.on('messageCreate', async (message) => {
     if (message.attachments.size > 0) {
         message.attachments.forEach(async (attachment) => {
             if (attachment.contentType.startsWith('image/')) {
-                setImmediate(() => processImage(embed.image.url, phone, message));
+                    setImmediate(() => processImage(attachment.url, phone, message));
             }
         });
     }
