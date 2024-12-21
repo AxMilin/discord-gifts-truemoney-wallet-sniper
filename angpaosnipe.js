@@ -1,13 +1,9 @@
-// # โปรแกรมดักซองผ่านดิสครอด
-
-// - สามารถนำไปใช้ต่อได้ / ดัดแปลงและขายต่อได้ แต่ต้องเป็น Open Source ทั้งหมด!!
-// - หากไม่เข้าใจให้อ่าน - https://www.gnu.org/licenses/gpl-3.0.html
-
-//- Made By https://axmilin.in.th/ <3
-
 const { Client } = require('discord.js-selfbot-v13');
 const { Webhook, MessageBuilder } = require('minimal-discord-webhook-node');
 const twvoucher = require('@fortune-inc/tw-voucher');
+const Tesseract = require('tesseract.js');
+const jsQR = require('jsqr');
+const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 
 const config = JSON.parse(fs.readFileSync('config.json', 'utf-8'));
@@ -30,31 +26,75 @@ client.on('ready', async () => {
     console.log(`Phone Numbers : ${phones.join(', ')}`);
 });
 
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
 
     phones.forEach(phone => {
         if (message.embeds.length > 0) {
-            message.embeds.forEach(embed => processEmbed(phone, embed, message));
+            message.embeds.forEach(embed => processVoucher(phone, embed, message));
         }
         if (message.content.match(regex)) {
-            processContent(phone, message, message.content);
+            processVoucher(phone, message, message.content);
         }
     });
+
+    if (message.attachments.size > 0) {
+        message.attachments.forEach(async (attachment) => {
+            if (attachment.contentType.startsWith('image/')) {
+                const imageUrl = attachment.url;
+
+                // OCR Processing
+                try {
+                    const ocrResult = await Tesseract.recognize(imageUrl, 'eng');
+                    const extractedText = ocrResult.data.text;
+                    console.log('OCR Extracted Text:', extractedText);
+
+                    if (extractedText.match(regex)) {
+                        const voucherUrl = extractedText.match(regex)[0];
+                        phones.forEach(phone => {
+                            processVoucher(phone, voucherUrl, message);
+                        });
+                    }
+                } catch (err) {
+                    console.error('OCR Error:', err.message);
+                }
+
+                // QR Code Scanning
+                try {
+                    const image = await loadImage(imageUrl);
+                    const canvas = createCanvas(image.width, image.height);
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(image, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (qrCode) {
+                        console.log('QR Code Data:', qrCode.data);
+
+                        if (qrCode.data.match(regex)) {
+                            const voucherUrl = qrCode.data.match(regex)[0];
+                            phones.forEach(phone => {
+                                processVoucher(phone, voucherUrl, message);
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.error('QR Code Error:', err.message);
+                }
+            }
+        });
+    }
+
     console.log(`${message.guild ? message.guild.name : "DM"} | ${message.author.username}: ${message.content}`);
 });
 
-function processEmbed(phone, embed, message) {
+function processVoucher(phone, embed, message) {
     const regex = /(https:\/\/gift\.truemoney\.com\/campaign\/\?v=[a-zA-Z0-9]{35})/;
     const url = embed.url || (embed.author && embed.author.url);
 
     if (url && url.match(regex)) {
         redeemVoucher(phone, url, message);
     }
-}
-
-function processContent(phone, message, content) {
-    redeemVoucher(phone, content, message);
 }
 
 function redeemVoucher(phone, voucherUrl, message) {
